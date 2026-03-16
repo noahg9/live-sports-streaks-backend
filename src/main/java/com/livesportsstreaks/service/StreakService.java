@@ -144,6 +144,14 @@ public class StreakService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<StreakResponse> getStreaksByTeam(Long teamId) {
+        return streakRepository.findAll().stream()
+                .filter(s -> "team".equals(s.getEntityType()) && teamId.equals(s.getEntityId()))
+                .map(this::toStreakResponse)
+                .collect(Collectors.toList());
+    }
+
     private StreakResponse toStreakResponse(Streak streak) {
         String name;
         String sport;

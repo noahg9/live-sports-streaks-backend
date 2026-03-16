@@ -26,4 +26,9 @@ public class StreakController {
     public List<StreakResponse> getStreaksBySport(@PathVariable String sport) {
         return streakService.getStreaksBySport(sport);
     }
+
+    @GetMapping("/team/{id}/streaks")
+    public List<StreakResponse> getStreaksByTeam(@PathVariable Long id) {
+        return streakService.getStreaksByTeam(id);
+    }
 }
