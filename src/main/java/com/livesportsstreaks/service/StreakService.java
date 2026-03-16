@@ -1,5 +1,6 @@
 package com.livesportsstreaks.service;
 
+import com.livesportsstreaks.dto.StreakResponse;
 import com.livesportsstreaks.model.Match;
 import com.livesportsstreaks.model.Player;
 import com.livesportsstreaks.model.Streak;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class StreakService {
@@ -125,5 +127,32 @@ public class StreakService {
         streak.setLength(length);
         streak.setLastUpdated(LocalDateTime.now());
         streakRepository.save(streak);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StreakResponse> getAllStreaks() {
+        return streakRepository.findAll().stream()
+                .map(this::toStreakResponse)
+                .collect(Collectors.toList());
+    }
+
+    private StreakResponse toStreakResponse(Streak streak) {
+        String name;
+        String sport;
+        if ("team".equals(streak.getEntityType())) {
+            Team team = teamRepository.findById(streak.getEntityId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Team not found for streak: entityId=" + streak.getEntityId()));
+            name = team.getName();
+            sport = team.getSport();
+        } else {
+            Player player = playerRepository.findById(streak.getEntityId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Player not found for streak: entityId=" + streak.getEntityId()));
+            name = player.getName();
+            sport = player.getSport();
+        }
+        return new StreakResponse(streak.getEntityType(), name, sport,
+                streak.getStreakType(), streak.getLength());
     }
 }

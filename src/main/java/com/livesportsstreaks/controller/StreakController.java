@@ -1,12 +1,23 @@
 package com.livesportsstreaks.controller;
 
+import com.livesportsstreaks.dto.StreakResponse;
+import com.livesportsstreaks.service.StreakService;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 public class StreakController {
-    // TODO Epic 4: implement endpoints
-    // GET /streaks          - all streaks
-    // GET /streaks/{sport}  - streaks by sport
-    // GET /team/{id}/streaks
-    // GET /player/{id}/streaks
+
+    private final StreakService streakService;
+
+    public StreakController(StreakService streakService) {
+        this.streakService = streakService;
+    }
+
+    @GetMapping("/streaks")
+    public List<StreakResponse> getAllStreaks() {
+        return streakService.getAllStreaks();
+    }
 }
