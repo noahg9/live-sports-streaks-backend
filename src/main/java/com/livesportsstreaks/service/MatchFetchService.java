@@ -83,6 +83,7 @@ public class MatchFetchService {
                             : null;
 
                     return Match.builder()
+                            .externalId(fixtureInfo != null ? fixtureInfo.getId() : null)
                             .sport("football")
                             .date(matchDate)
                             .homeTeam(homeTeam)
