@@ -25,23 +25,23 @@ public class MatchFetchService {
     @Value("${api.football.url}")
     private String apiFootballUrl;
 
-    @Value("${api.football.key}")
-    private String apiFootballKey;
+    @Value("${api.sports.key}")
+    private String apiSportsKey;
 
     public MatchFetchService() {
         this.restClient = RestClient.builder().build();
     }
 
     public List<Match> fetchLiveFootballMatches() {
-        if (apiFootballKey == null || apiFootballKey.isBlank()) {
-            log.warn("api.football.key is not configured — skipping football fetch");
+        if (apiSportsKey == null || apiSportsKey.isBlank()) {
+            log.warn("api.sports.key is not configured — skipping football fetch");
             return Collections.emptyList();
         }
 
         try {
             ApiFootballResponse response = restClient.get()
                     .uri(apiFootballUrl + "/fixtures?live=all")
-                    .header("x-apisports-key", apiFootballKey)
+                    .header("x-apisports-key", apiSportsKey)
                     .retrieve()
                     .body(ApiFootballResponse.class);
 
