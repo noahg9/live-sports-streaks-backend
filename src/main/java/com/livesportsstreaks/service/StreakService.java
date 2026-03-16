@@ -1,9 +1,11 @@
 package com.livesportsstreaks.service;
 
 import com.livesportsstreaks.model.Match;
+import com.livesportsstreaks.model.Player;
 import com.livesportsstreaks.model.Streak;
 import com.livesportsstreaks.model.Team;
 import com.livesportsstreaks.repository.MatchRepository;
+import com.livesportsstreaks.repository.PlayerRepository;
 import com.livesportsstreaks.repository.StreakRepository;
 import com.livesportsstreaks.repository.TeamRepository;
 import org.slf4j.Logger;
@@ -12,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class StreakService {
@@ -22,29 +26,53 @@ public class StreakService {
     private final TeamRepository teamRepository;
     private final MatchRepository matchRepository;
     private final StreakRepository streakRepository;
+    private final PlayerRepository playerRepository;
 
     public StreakService(TeamRepository teamRepository,
                         MatchRepository matchRepository,
-                        StreakRepository streakRepository) {
+                        StreakRepository streakRepository,
+                        PlayerRepository playerRepository) {
         this.teamRepository = teamRepository;
         this.matchRepository = matchRepository;
         this.streakRepository = streakRepository;
+        this.playerRepository = playerRepository;
     }
 
     @Transactional
     public void calculateAndStoreTeamStreaks() {
         List<Team> teams = teamRepository.findAll();
         for (Team team : teams) {
-            int winStreak = calculateWinStreak(team.getId());
-            int unbeatenStreak = calculateUnbeatenStreak(team.getId());
-            upsertTeamStreak(team.getId(), "win", winStreak);
-            upsertTeamStreak(team.getId(), "unbeaten", unbeatenStreak);
+            List<Match> matches = matchRepository.findFinishedMatchesByTeamOrderByDateDesc(team.getId());
+            int winStreak = calculateWinStreak(matches, team.getId());
+            int unbeatenStreak = calculateUnbeatenStreak(matches, team.getId());
+            upsertStreak("team", team.getId(), "win", winStreak);
+            upsertStreak("team", team.getId(), "unbeaten", unbeatenStreak);
         }
         log.info("Calculated streaks for {} teams", teams.size());
     }
 
-    private int calculateWinStreak(Long teamId) {
-        List<Match> matches = matchRepository.findFinishedMatchesByTeamOrderByDateDesc(teamId);
+    @Transactional
+    public void calculateAndStorePlayerStreaks() {
+        List<Player> players = playerRepository.findAll();
+        Map<Long, List<Match>> teamMatchCache = new HashMap<>();
+        int skipped = 0;
+        for (Player player : players) {
+            if (player.getTeam() == null) {
+                skipped++;
+                continue;
+            }
+            Long teamId = player.getTeam().getId();
+            List<Match> matches = teamMatchCache.computeIfAbsent(teamId,
+                    id -> matchRepository.findFinishedMatchesByTeamOrderByDateDesc(id));
+            int winStreak = calculateWinStreak(matches, teamId);
+            int unbeatenStreak = calculateUnbeatenStreak(matches, teamId);
+            upsertStreak("player", player.getId(), "win", winStreak);
+            upsertStreak("player", player.getId(), "unbeaten", unbeatenStreak);
+        }
+        log.info("Calculated streaks for {} players ({} skipped — no team)", players.size() - skipped, skipped);
+    }
+
+    private int calculateWinStreak(List<Match> matches, Long teamId) {
         int streak = 0;
         for (Match match : matches) {
             if (teamWon(match, teamId)) {
@@ -56,8 +84,7 @@ public class StreakService {
         return streak;
     }
 
-    private int calculateUnbeatenStreak(Long teamId) {
-        List<Match> matches = matchRepository.findFinishedMatchesByTeamOrderByDateDesc(teamId);
+    private int calculateUnbeatenStreak(List<Match> matches, Long teamId) {
         int streak = 0;
         for (Match match : matches) {
             if (teamWonOrDrew(match, teamId)) {
@@ -87,12 +114,12 @@ public class StreakService {
         }
     }
 
-    private void upsertTeamStreak(Long teamId, String streakType, int length) {
+    private void upsertStreak(String entityType, Long entityId, String streakType, int length) {
         Streak streak = streakRepository
-                .findByEntityTypeAndEntityIdAndStreakType("team", teamId, streakType)
+                .findByEntityTypeAndEntityIdAndStreakType(entityType, entityId, streakType)
                 .orElse(Streak.builder()
-                        .entityType("team")
-                        .entityId(teamId)
+                        .entityType(entityType)
+                        .entityId(entityId)
                         .streakType(streakType)
                         .build());
         streak.setLength(length);

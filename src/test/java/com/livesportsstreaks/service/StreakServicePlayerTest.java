@@ -1,6 +1,7 @@
 package com.livesportsstreaks.service;
 
 import com.livesportsstreaks.model.Match;
+import com.livesportsstreaks.model.Player;
 import com.livesportsstreaks.model.Streak;
 import com.livesportsstreaks.model.Team;
 import com.livesportsstreaks.repository.MatchRepository;
@@ -23,7 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class StreakServiceTest {
+class StreakServicePlayerTest {
 
     @Mock private TeamRepository teamRepository;
     @Mock private MatchRepository matchRepository;
@@ -34,29 +35,28 @@ class StreakServiceTest {
     private StreakService streakService;
 
     private Team teamA;
+    private Player playerA;
 
     @BeforeEach
     void setUp() {
         teamA = Team.builder().id(1L).name("Arsenal").sport("football").build();
-        when(streakRepository.findByEntityTypeAndEntityIdAndStreakType(any(), any(), any()))
+        playerA = Player.builder().id(10L).name("Salah").sport("football").team(teamA).build();
+        lenient().when(streakRepository.findByEntityTypeAndEntityIdAndStreakType(any(), any(), any()))
                 .thenReturn(Optional.empty());
-        when(streakRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(streakRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     private Match finishedMatch(Long homeTeamId, Integer homeScore, Long awayTeamId, Integer awayScore) {
         Team home = Team.builder().id(homeTeamId).build();
         Team away = Team.builder().id(awayTeamId).build();
         return Match.builder()
-                .homeTeam(home)
-                .awayTeam(away)
-                .homeScore(homeScore)
-                .awayScore(awayScore)
-                .status("FT")
-                .build();
+                .homeTeam(home).awayTeam(away)
+                .homeScore(homeScore).awayScore(awayScore)
+                .status("FT").build();
     }
 
     private List<Streak> captureAllSavedStreaks() {
-        streakService.calculateAndStoreTeamStreaks();
+        streakService.calculateAndStorePlayerStreaks();
         ArgumentCaptor<Streak> captor = ArgumentCaptor.forClass(Streak.class);
         verify(streakRepository, times(2)).save(captor.capture());
         return captor.getAllValues();
@@ -72,8 +72,8 @@ class StreakServiceTest {
     // ── Win streak tests ──────────────────────────────────────────────────────
 
     @Test
-    void threeConsecutiveHomeWins_winStreakIs3() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
+    void threeConsecutiveTeamWins_playerWinStreakIs3() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
                 finishedMatch(1L, 3, 2L, 0),
                 finishedMatch(1L, 2, 2L, 1),
@@ -84,12 +84,14 @@ class StreakServiceTest {
 
         assertThat(streakOf(saved, "win").getLength()).isEqualTo(3);
         assertThat(streakOf(saved, "unbeaten").getLength()).isEqualTo(3);
+        assertThat(streakOf(saved, "win").getEntityType()).isEqualTo("player");
+        assertThat(streakOf(saved, "win").getEntityId()).isEqualTo(10L);
     }
 
     @Test
-    void awayWin_countsTowardStreak() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
-        // teamA is away team (id=1L), wins 0-2
+    void awayWin_countsTowardPlayerStreak() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
+        // teamA is the away team (id=1L), wins 0-2
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
                 finishedMatch(2L, 0, 1L, 2)
         ));
@@ -101,12 +103,11 @@ class StreakServiceTest {
     }
 
     @Test
-    void drawBreaksWinStreakButNotUnbeatenStreak() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
-        // Most recent: win, then draw — draw breaks win streak but not unbeaten
+    void drawBreaksPlayerWinStreakButNotUnbeatenStreak() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
                 finishedMatch(1L, 2, 2L, 0),  // win (most recent)
-                finishedMatch(1L, 1, 2L, 1)   // draw — breaks win streak, not unbeaten
+                finishedMatch(1L, 1, 2L, 1)   // draw — breaks win, not unbeaten
         ));
 
         List<Streak> saved = captureAllSavedStreaks();
@@ -116,11 +117,10 @@ class StreakServiceTest {
     }
 
     @Test
-    void lossAsFirstResult_bothStreaksZero() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
-        // teamA is home, loses 0-1 (most recent match)
+    void lossAsFirstResult_bothPlayerStreaksZero() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
-                finishedMatch(1L, 0, 2L, 1),  // loss (most recent) — breaks both streaks immediately
+                finishedMatch(1L, 0, 2L, 1),  // loss (most recent) — breaks both streaks
                 finishedMatch(1L, 3, 2L, 0)   // prior win — not counted
         ));
 
@@ -131,10 +131,10 @@ class StreakServiceTest {
     }
 
     @Test
-    void nullScores_treatedAsLoss() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
+    void nullScores_treatedAsLoss_forPlayer() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
-                finishedMatch(1L, null, 2L, null),  // null scores — treated as non-win/non-unbeaten
+                finishedMatch(1L, null, 2L, null),  // null scores — treated as non-win
                 finishedMatch(1L, 2, 2L, 0)         // prior win — not counted
         ));
 
@@ -144,9 +144,24 @@ class StreakServiceTest {
         assertThat(streakOf(saved, "unbeaten").getLength()).isEqualTo(0);
     }
 
+    // ── Null team guard ───────────────────────────────────────────────────────
+
     @Test
-    void noFinishedMatches_bothStreaksZero() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
+    void playerWithNullTeam_isSkipped() {
+        Player playerNoTeam = Player.builder().id(99L).name("Free Agent").sport("football").team(null).build();
+        when(playerRepository.findAll()).thenReturn(List.of(playerNoTeam));
+
+        streakService.calculateAndStorePlayerStreaks();
+
+        verify(streakRepository, never()).save(any());
+        verify(matchRepository, never()).findFinishedMatchesByTeamOrderByDateDesc(any());
+    }
+
+    // ── Edge cases ────────────────────────────────────────────────────────────
+
+    @Test
+    void noFinishedMatchesForTeam_bothStreaksZero() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of());
 
         List<Streak> saved = captureAllSavedStreaks();
@@ -155,59 +170,69 @@ class StreakServiceTest {
         assertThat(streakOf(saved, "unbeaten").getLength()).isEqualTo(0);
     }
 
+    @Test
+    void twoPlayersOnSameTeam_eachGetsOwnStreakRows() {
+        Player playerB = Player.builder().id(20L).name("Firmino").sport("football").team(teamA).build();
+        when(playerRepository.findAll()).thenReturn(List.of(playerA, playerB));
+        when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
+                finishedMatch(1L, 2, 2L, 0)
+        ));
+
+        streakService.calculateAndStorePlayerStreaks();
+
+        ArgumentCaptor<Streak> captor = ArgumentCaptor.forClass(Streak.class);
+        verify(streakRepository, times(4)).save(captor.capture()); // 2 players × 2 streak types
+
+        List<Streak> playerAStreaks = captor.getAllValues().stream()
+                .filter(s -> s.getEntityId().equals(10L)).toList();
+        List<Streak> playerBStreaks = captor.getAllValues().stream()
+                .filter(s -> s.getEntityId().equals(20L)).toList();
+
+        assertThat(playerAStreaks).hasSize(2);
+        assertThat(playerBStreaks).hasSize(2);
+    }
+
+    @Test
+    void twoPlayersOnSameTeam_matchQueryCalledOnce() {
+        // Cache: second player on the same team reuses the cached match list — only 1 DB query
+        Player playerB = Player.builder().id(20L).name("Firmino").sport("football").team(teamA).build();
+        when(playerRepository.findAll()).thenReturn(List.of(playerA, playerB));
+        when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
+                finishedMatch(1L, 2, 2L, 0)
+        ));
+
+        streakService.calculateAndStorePlayerStreaks();
+
+        verify(matchRepository, times(1)).findFinishedMatchesByTeamOrderByDateDesc(1L);
+    }
+
     // ── Upsert tests ─────────────────────────────────────────────────────────
 
     @Test
-    void existingStreak_isUpdatedNotDuplicated() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
+    void existingPlayerStreak_isUpdatedNotDuplicated() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
                 finishedMatch(1L, 1, 2L, 0)
         ));
         Streak existingWin = Streak.builder()
-                .id(10L).entityType("team").entityId(1L).streakType("win").length(5).build();
-        when(streakRepository.findByEntityTypeAndEntityIdAndStreakType("team", 1L, "win"))
+                .id(55L).entityType("player").entityId(10L).streakType("win").length(7).build();
+        when(streakRepository.findByEntityTypeAndEntityIdAndStreakType("player", 10L, "win"))
                 .thenReturn(Optional.of(existingWin));
 
-        streakService.calculateAndStoreTeamStreaks();
+        streakService.calculateAndStorePlayerStreaks();
 
-        // Existing object should have been mutated (length updated) and re-saved — no new row
         assertThat(existingWin.getLength()).isEqualTo(1);
-        assertThat(existingWin.getId()).isEqualTo(10L);
+        assertThat(existingWin.getId()).isEqualTo(55L); // same DB row, not a new insert
         verify(streakRepository).save(existingWin);
     }
 
     @Test
-    void savedStreak_hasLastUpdatedSet() {
-        when(teamRepository.findAll()).thenReturn(List.of(teamA));
+    void savedPlayerStreak_hasLastUpdatedSet() {
+        when(playerRepository.findAll()).thenReturn(List.of(playerA));
         when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of());
 
         List<Streak> saved = captureAllSavedStreaks();
 
         assertThat(saved).allMatch(s -> s.getLastUpdated() != null);
-    }
-
-    @Test
-    void multipleTeams_eachGetsOwnStreaks() {
-        Team teamB = Team.builder().id(2L).name("Chelsea").sport("football").build();
-        when(teamRepository.findAll()).thenReturn(List.of(teamA, teamB));
-        when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(1L)).thenReturn(List.of(
-                finishedMatch(1L, 2, 2L, 0)  // teamA wins
-        ));
-        when(matchRepository.findFinishedMatchesByTeamOrderByDateDesc(2L)).thenReturn(List.of(
-                finishedMatch(1L, 2, 2L, 0)  // teamB (away) loses
-        ));
-
-        streakService.calculateAndStoreTeamStreaks();
-
-        ArgumentCaptor<Streak> captor = ArgumentCaptor.forClass(Streak.class);
-        verify(streakRepository, times(4)).save(captor.capture()); // 2 teams × 2 streak types
-
-        List<Streak> teamAStreaks = captor.getAllValues().stream()
-                .filter(s -> s.getEntityId().equals(1L)).toList();
-        List<Streak> teamBStreaks = captor.getAllValues().stream()
-                .filter(s -> s.getEntityId().equals(2L)).toList();
-
-        assertThat(teamAStreaks).hasSize(2);
-        assertThat(teamBStreaks).hasSize(2);
     }
 }
