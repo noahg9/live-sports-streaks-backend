@@ -88,4 +88,26 @@ class StreakControllerTest {
 
         assertThat(result).isEmpty();
     }
+
+    @Test
+    void getStreaksByPlayer_returnsList() {
+        List<StreakResponse> expected = List.of(
+                new StreakResponse("player", "LeBron James", "basketball", "win", 5)
+        );
+        when(streakService.getStreaksByPlayer(1L)).thenReturn(expected);
+
+        List<StreakResponse> result = streakController.getStreaksByPlayer(1L);
+
+        assertThat(result).isEqualTo(expected);
+        verify(streakService).getStreaksByPlayer(1L);
+    }
+
+    @Test
+    void getStreaksByPlayer_returnsEmptyListWhenNoMatch() {
+        when(streakService.getStreaksByPlayer(99L)).thenReturn(List.of());
+
+        List<StreakResponse> result = streakController.getStreaksByPlayer(99L);
+
+        assertThat(result).isEmpty();
+    }
 }
