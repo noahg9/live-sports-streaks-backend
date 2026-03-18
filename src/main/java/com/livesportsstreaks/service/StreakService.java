@@ -12,6 +12,8 @@ import com.livesportsstreaks.repository.TeamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import java.util.Set;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,9 @@ import java.util.stream.Collectors;
 public class StreakService {
 
     private static final Logger log = LoggerFactory.getLogger(StreakService.class);
+
+    // Sports where draws are possible — unbeaten streak is meaningful
+    private static final Set<String> DRAW_SPORTS = Set.of("football", "rugby", "handball");
 
     private final TeamRepository teamRepository;
     private final MatchRepository matchRepository;
@@ -45,10 +50,10 @@ public class StreakService {
         List<Team> teams = teamRepository.findAll();
         for (Team team : teams) {
             List<Match> matches = matchRepository.findFinishedMatchesByTeamOrderByDateDesc(team.getId());
-            int winStreak = calculateWinStreak(matches, team.getId());
-            int unbeatenStreak = calculateUnbeatenStreak(matches, team.getId());
-            upsertStreak("team", team.getId(), "win", winStreak);
-            upsertStreak("team", team.getId(), "unbeaten", unbeatenStreak);
+            upsertStreak("team", team.getId(), "win", calculateWinStreak(matches, team.getId()));
+            if (DRAW_SPORTS.contains(team.getSport())) {
+                upsertStreak("team", team.getId(), "unbeaten", calculateUnbeatenStreak(matches, team.getId()));
+            }
         }
         log.info("Calculated streaks for {} teams", teams.size());
     }
@@ -66,10 +71,10 @@ public class StreakService {
             Long teamId = player.getTeam().getId();
             List<Match> matches = teamMatchCache.computeIfAbsent(teamId,
                     id -> matchRepository.findFinishedMatchesByTeamOrderByDateDesc(id));
-            int winStreak = calculateWinStreak(matches, teamId);
-            int unbeatenStreak = calculateUnbeatenStreak(matches, teamId);
-            upsertStreak("player", player.getId(), "win", winStreak);
-            upsertStreak("player", player.getId(), "unbeaten", unbeatenStreak);
+            upsertStreak("player", player.getId(), "win", calculateWinStreak(matches, teamId));
+            if (DRAW_SPORTS.contains(player.getSport())) {
+                upsertStreak("player", player.getId(), "unbeaten", calculateUnbeatenStreak(matches, teamId));
+            }
         }
         log.info("Calculated streaks for {} players ({} skipped — no team)", players.size() - skipped, skipped);
     }
@@ -163,20 +168,23 @@ public class StreakService {
     private StreakResponse toStreakResponse(Streak streak) {
         String name;
         String sport;
+        String league;
         if ("team".equals(streak.getEntityType())) {
             Team team = teamRepository.findById(streak.getEntityId())
                     .orElseThrow(() -> new IllegalStateException(
                             "Team not found for streak: entityId=" + streak.getEntityId()));
             name = team.getName();
             sport = team.getSport();
+            league = team.getLeague();
         } else {
             Player player = playerRepository.findById(streak.getEntityId())
                     .orElseThrow(() -> new IllegalStateException(
                             "Player not found for streak: entityId=" + streak.getEntityId()));
             name = player.getName();
             sport = player.getSport();
+            league = player.getTeam() != null ? player.getTeam().getLeague() : null;
         }
-        return new StreakResponse(streak.getEntityType(), name, sport,
+        return new StreakResponse(streak.getEntityType(), name, sport, league,
                 streak.getStreakType(), streak.getLength());
     }
 }

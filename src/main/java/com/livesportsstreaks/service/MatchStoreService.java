@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,20 +32,43 @@ public class MatchStoreService {
 
     public void fetchAndStore() {
         // HTTP calls happen here — outside any transaction
-        List<Match> liveMatches = matchFetchService.fetchLiveFootballMatches();
-        List<Match> finishedMatches = matchFetchService.fetchRecentFinishedFootballMatches();
+        List<Match> liveMatches = matchFetchService.fetchAllLiveMatches();
+        List<Match> finishedMatches = matchFetchService.fetchAllRecentFinishedMatches();
 
-        List<Match> allMatches = new ArrayList<>();
-        allMatches.addAll(liveMatches);
+        List<Match> allMatches = new ArrayList<>(liveMatches);
         allMatches.addAll(finishedMatches);
 
         if (allMatches.isEmpty()) {
-            log.info("No football matches to store");
+            log.info("No matches to store");
             return;
         }
         storeMatches(allMatches);
-        log.info("Processed {} football matches ({} live, {} recently finished)",
+        log.info("Processed {} matches across all sports ({} live, {} recently finished)",
                 allMatches.size(), liveMatches.size(), finishedMatches.size());
+    }
+
+    public void fetchAndStoreHistorical(int pageSize) {
+        // Find how far back our data already goes
+        LocalDate earliestDate = matchRepository.findEarliestMatchDate()
+                .map(dt -> dt.toLocalDate())
+                .orElse(LocalDate.now()); // no data yet — start from today
+
+        // Fetch the next page of history before our earliest date
+        long daysAlreadyCovered = ChronoUnit.DAYS.between(earliestDate, LocalDate.now());
+        int fetchFrom = (int) daysAlreadyCovered + 1;
+        int fetchTo   = (int) daysAlreadyCovered + pageSize;
+
+        log.info("Historical backfill: fetching days {} to {} back (earliest stored: {})",
+                fetchFrom, fetchTo, earliestDate);
+
+        List<Match> matches = matchFetchService.fetchHistoricalMatches(fetchFrom, fetchTo);
+        if (matches.isEmpty()) {
+            log.info("Historical backfill: no matches found for this date range");
+            return;
+        }
+        storeMatches(matches);
+        log.info("Historical backfill: processed {} matches (days {} to {} back)",
+                matches.size(), fetchFrom, fetchTo);
     }
 
     private void storeMatches(List<Match> matches) {
