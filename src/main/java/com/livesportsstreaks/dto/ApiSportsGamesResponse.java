@@ -65,6 +65,13 @@ public class ApiSportsGamesResponse {
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ScoreValue {
-        private Integer total;
+        private Integer total;    // basketball, baseball, hockey, volleyball (sets won)
+        private Integer fulltime; // handball
+
+        /** Returns whichever score field is populated. */
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public Integer getEffectiveTotal() {
+            return total != null ? total : fulltime;
+        }
     }
 }

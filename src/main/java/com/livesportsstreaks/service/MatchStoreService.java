@@ -72,11 +72,14 @@ public class MatchStoreService {
     }
 
     private void storeMatches(List<Match> matches) {
+        int skipped = 0;
         for (Match match : matches) {
+            if (match.getExternalId() == null) { skipped++; continue; }
             Team homeTeam = upsertTeam(match.getHomeTeam());
             Team awayTeam = upsertTeam(match.getAwayTeam());
             upsertMatch(match, homeTeam, awayTeam);
         }
+        if (skipped > 0) log.warn("Skipped {} match(es) with null externalId", skipped);
     }
 
     private Team upsertTeam(Team team) {
@@ -90,11 +93,6 @@ public class MatchStoreService {
     }
 
     private void upsertMatch(Match match, Team homeTeam, Team awayTeam) {
-        if (match.getExternalId() == null) {
-            log.warn("Skipping match with null externalId");
-            return;
-        }
-
         Match existing = matchRepository.findByExternalId(match.getExternalId())
                 .orElse(Match.builder().externalId(match.getExternalId()).build());
 
