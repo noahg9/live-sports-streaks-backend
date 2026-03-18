@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -53,6 +54,34 @@ public class MatchFetchService {
             return mapToMatches(response);
         } catch (RestClientException e) {
             log.error("Failed to fetch live football matches: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    public List<Match> fetchRecentFinishedFootballMatches() {
+        if (apiSportsKey == null || apiSportsKey.isBlank()) {
+            log.warn("api.sports.key is not configured — skipping finished football fetch");
+            return Collections.emptyList();
+        }
+
+        String from = LocalDate.now().minusDays(2).toString();
+        String to = LocalDate.now().toString();
+
+        try {
+            ApiFootballResponse response = restClient.get()
+                    .uri(apiFootballUrl + "/fixtures?status=FT&from=" + from + "&to=" + to)
+                    .header("x-apisports-key", apiSportsKey)
+                    .retrieve()
+                    .body(ApiFootballResponse.class);
+
+            if (response == null || response.getResponse() == null) {
+                log.warn("API-Football returned null or empty response for finished matches");
+                return Collections.emptyList();
+            }
+
+            return mapToMatches(response);
+        } catch (RestClientException e) {
+            log.error("Failed to fetch finished football matches: {}", e.getMessage());
             return Collections.emptyList();
         }
     }

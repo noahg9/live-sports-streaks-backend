@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -28,14 +29,21 @@ public class MatchStoreService {
     }
 
     public void fetchAndStore() {
-        // HTTP call happens here — outside any transaction
-        List<Match> matches = matchFetchService.fetchLiveFootballMatches();
-        if (matches.isEmpty()) {
-            log.info("No live football matches to store");
+        // HTTP calls happen here — outside any transaction
+        List<Match> liveMatches = matchFetchService.fetchLiveFootballMatches();
+        List<Match> finishedMatches = matchFetchService.fetchRecentFinishedFootballMatches();
+
+        List<Match> allMatches = new ArrayList<>();
+        allMatches.addAll(liveMatches);
+        allMatches.addAll(finishedMatches);
+
+        if (allMatches.isEmpty()) {
+            log.info("No football matches to store");
             return;
         }
-        storeMatches(matches);
-        log.info("Processed {} live football matches (insert or update)", matches.size());
+        storeMatches(allMatches);
+        log.info("Processed {} football matches ({} live, {} recently finished)",
+                allMatches.size(), liveMatches.size(), finishedMatches.size());
     }
 
     private void storeMatches(List<Match> matches) {
