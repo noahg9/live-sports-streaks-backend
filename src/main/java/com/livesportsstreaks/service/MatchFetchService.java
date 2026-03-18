@@ -60,9 +60,9 @@ public class MatchFetchService {
     @Value("${api.volleyball.url}") private String volleyballUrl;
     @Value("${api.nfl.url}")        private String nflUrl;
 
-    public MatchFetchService(ObjectMapper objectMapper) {
+    public MatchFetchService() {
         this.restClient = RestClient.builder().build();
-        this.objectMapper = objectMapper;
+        this.objectMapper = new ObjectMapper();
     }
 
     public List<Match> fetchAllLiveMatches() {
