@@ -64,12 +64,11 @@ public class MatchFetchService {
             return Collections.emptyList();
         }
 
-        String from = LocalDate.now().minusDays(2).toString();
-        String to = LocalDate.now().toString();
+        String yesterday = LocalDate.now().minusDays(1).toString();
 
         try {
             ApiFootballResponse response = restClient.get()
-                    .uri(apiFootballUrl + "/fixtures?status=FT&from=" + from + "&to=" + to)
+                    .uri(apiFootballUrl + "/fixtures?date=" + yesterday)
                     .header("x-apisports-key", apiSportsKey)
                     .retrieve()
                     .body(ApiFootballResponse.class);
