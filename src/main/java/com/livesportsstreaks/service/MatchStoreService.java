@@ -8,8 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,31 +45,7 @@ public class MatchStoreService {
                 allMatches.size(), liveMatches.size(), finishedMatches.size());
     }
 
-    public void fetchAndStoreHistorical(int pageSize) {
-        // Find how far back our data already goes
-        LocalDate earliestDate = matchRepository.findEarliestMatchDate()
-                .map(dt -> dt.toLocalDate())
-                .orElse(LocalDate.now()); // no data yet — start from today
-
-        // Fetch the next page of history before our earliest date
-        long daysAlreadyCovered = ChronoUnit.DAYS.between(earliestDate, LocalDate.now());
-        int fetchFrom = (int) daysAlreadyCovered + 1;
-        int fetchTo   = (int) daysAlreadyCovered + pageSize;
-
-        log.info("Historical backfill: fetching days {} to {} back (earliest stored: {})",
-                fetchFrom, fetchTo, earliestDate);
-
-        List<Match> matches = matchFetchService.fetchHistoricalMatches(fetchFrom, fetchTo);
-        if (matches.isEmpty()) {
-            log.info("Historical backfill: no matches found for this date range");
-            return;
-        }
-        storeMatches(matches);
-        log.info("Historical backfill: processed {} matches (days {} to {} back)",
-                matches.size(), fetchFrom, fetchTo);
-    }
-
-    private void storeMatches(List<Match> matches) {
+private void storeMatches(List<Match> matches) {
         int skipped = 0;
         for (Match match : matches) {
             if (match.getExternalId() == null) { skipped++; continue; }

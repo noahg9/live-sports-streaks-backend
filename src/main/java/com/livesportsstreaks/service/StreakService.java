@@ -185,6 +185,6 @@ public class StreakService {
             league = player.getTeam() != null ? player.getTeam().getLeague() : null;
         }
         return new StreakResponse(streak.getEntityType(), name, sport, league,
-                streak.getStreakType(), streak.getLength());
+                streak.getStreakType(), streak.getLength(), streak.getLastUpdated());
     }
 }

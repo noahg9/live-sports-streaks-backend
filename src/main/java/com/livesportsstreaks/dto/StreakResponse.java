@@ -1,6 +1,7 @@
 package com.livesportsstreaks.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.LocalDateTime;
 
 public record StreakResponse(
         @JsonProperty("entity_type") String entityType,
@@ -8,5 +9,6 @@ public record StreakResponse(
         String sport,
         String league,
         @JsonProperty("streak_type") String streakType,
-        int length
+        int length,
+        @JsonProperty("last_updated") LocalDateTime lastUpdated
 ) {}

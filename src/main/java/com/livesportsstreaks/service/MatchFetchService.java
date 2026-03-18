@@ -80,23 +80,17 @@ public class MatchFetchService {
     }
 
     public List<Match> fetchAllRecentFinishedMatches() {
-        return fetchHistoricalMatches(1, 1);
-    }
-
-    public List<Match> fetchHistoricalMatches(int fromDaysAgo, int toDaysAgo) {
         if (!hasApiKey()) return Collections.emptyList();
+        String date = LocalDate.now().minusDays(1).toString();
         List<Match> all = new ArrayList<>();
-        for (int daysAgo = fromDaysAgo; daysAgo <= toDaysAgo; daysAgo++) {
-            String date = LocalDate.now().minusDays(daysAgo).toString();
-            all.addAll(fetchFootball(footballUrl + "/fixtures?date=" + date, FOOTBALL_OFFSET));
-            all.addAll(fetchGames(basketballUrl + "/games?date=" + date, "basketball", BASKETBALL_OFFSET));
-            all.addAll(fetchGames(baseballUrl + "/games?date=" + date, "baseball", BASEBALL_OFFSET));
-            all.addAll(fetchGames(hockeyUrl + "/games?date=" + date, "hockey", HOCKEY_OFFSET));
-            all.addAll(fetchGames(rugbyUrl + "/games?date=" + date, "rugby", RUGBY_OFFSET));
-            all.addAll(fetchGames(handballUrl + "/games?date=" + date, "handball", HANDBALL_OFFSET));
-            all.addAll(fetchGames(volleyballUrl + "/games?date=" + date, "volleyball", VOLLEYBALL_OFFSET));
-            all.addAll(fetchGames(nflUrl + "/games?date=" + date, "nfl", NFL_OFFSET));
-        }
+        all.addAll(fetchFootball(footballUrl + "/fixtures?date=" + date, FOOTBALL_OFFSET));
+        all.addAll(fetchGames(basketballUrl + "/games?date=" + date, "basketball", BASKETBALL_OFFSET));
+        all.addAll(fetchGames(baseballUrl + "/games?date=" + date, "baseball", BASEBALL_OFFSET));
+        all.addAll(fetchGames(hockeyUrl + "/games?date=" + date, "hockey", HOCKEY_OFFSET));
+        all.addAll(fetchGames(rugbyUrl + "/games?date=" + date, "rugby", RUGBY_OFFSET));
+        all.addAll(fetchGames(handballUrl + "/games?date=" + date, "handball", HANDBALL_OFFSET));
+        all.addAll(fetchGames(volleyballUrl + "/games?date=" + date, "volleyball", VOLLEYBALL_OFFSET));
+        all.addAll(fetchGames(nflUrl + "/games?date=" + date, "nfl", NFL_OFFSET));
         return all;
     }
 
