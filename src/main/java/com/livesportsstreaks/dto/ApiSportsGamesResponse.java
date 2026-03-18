@@ -15,10 +15,32 @@ public class ApiSportsGamesResponse {
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class GameEntry {
+        // Sports with a "game" wrapper (hockey, rugby, NFL)
         private GameInfo game;
+
+        // Sports with flat structure (basketball, baseball, handball, volleyball)
+        private Long id;
+        private String date;
+        private StatusInfo status;
+
         private LeagueInfo league;
         private TeamsInfo teams;
         private ScoresInfo scores;
+
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public Long getEffectiveId() {
+            return game != null && game.getId() != null ? game.getId() : id;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public String getEffectiveDate() {
+            return game != null && game.getDate() != null ? game.getDate() : date;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public StatusInfo getEffectiveStatus() {
+            return game != null && game.getStatus() != null ? game.getStatus() : status;
+        }
     }
 
     @Data

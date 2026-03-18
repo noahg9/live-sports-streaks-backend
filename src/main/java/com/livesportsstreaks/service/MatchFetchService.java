@@ -162,10 +162,10 @@ public class MatchFetchService {
     private List<Match> mapGames(ApiSportsGamesResponse response, String sport, long idOffset) {
         return response.getResponse().stream()
                 .map(entry -> {
-                    ApiSportsGamesResponse.GameInfo gameInfo = entry.getGame();
                     ApiSportsGamesResponse.TeamsInfo teams = entry.getTeams();
                     ApiSportsGamesResponse.ScoresInfo scores = entry.getScores();
                     ApiSportsGamesResponse.LeagueInfo league = entry.getLeague();
+                    ApiSportsGamesResponse.StatusInfo statusInfo = entry.getEffectiveStatus();
 
                     Team homeTeam = Team.builder()
                             .name(teams != null && teams.getHome() != null ? teams.getHome().getName() : null)
@@ -179,14 +179,13 @@ public class MatchFetchService {
                             .league(league != null ? league.getName() : null)
                             .build();
 
-                    Long apiId = gameInfo != null ? gameInfo.getId() : null;
-                    String rawStatus = gameInfo != null && gameInfo.getStatus() != null
-                            ? gameInfo.getStatus().getShortStatus() : null;
+                    Long apiId = entry.getEffectiveId();
+                    String rawStatus = statusInfo != null ? statusInfo.getShortStatus() : null;
 
                     return Match.builder()
                             .externalId(apiId != null ? apiId + idOffset : null)
                             .sport(sport)
-                            .date(gameInfo != null ? parseDate(gameInfo.getDate()) : null)
+                            .date(parseDate(entry.getEffectiveDate()))
                             .homeTeam(homeTeam)
                             .awayTeam(awayTeam)
                             .homeScore(scores != null && scores.getHome() != null ? scores.getHome().getEffectiveTotal() : null)
