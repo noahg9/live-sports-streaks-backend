@@ -2,6 +2,7 @@ package com.livesportsstreaks.scheduler;
 
 import com.livesportsstreaks.service.MatchStoreService;
 import com.livesportsstreaks.service.StreakService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +17,8 @@ public class MatchFetchScheduler {
         this.streakService = streakService;
     }
 
-    // Every 6 hours: fetch live + yesterday for all sports
-    @Scheduled(
-            fixedDelayString = "${scheduler.match-fetch.fixed-delay:21600000}",
-            initialDelayString = "${scheduler.match-fetch.initial-delay:0}")
+    // 4x daily at 00:00, 06:00, 12:00, 18:00 UTC
+    @Scheduled(cron = "${scheduler.match-fetch.cron:0 0 0,6,12,18 * * *}")
     public void fetchAndStoreMatches() {
         try {
             matchStoreService.fetchAndStore();

@@ -1,6 +1,5 @@
 package com.livesportsstreaks.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.livesportsstreaks.dto.ApiFootballResponse;
 import com.livesportsstreaks.dto.ApiSportsGamesResponse;
 import com.livesportsstreaks.model.Match;
@@ -48,7 +47,6 @@ public class MatchFetchService {
     private static final long NFL_OFFSET        = 70_000_000_000L;
 
     private final RestClient restClient;
-    private final ObjectMapper objectMapper;
 
     @Value("${api.sports.key}")     private String apiSportsKey;
     @Value("${api.football.url}")   private String footballUrl;
@@ -62,7 +60,6 @@ public class MatchFetchService {
 
     public MatchFetchService() {
         this.restClient = RestClient.builder().build();
-        this.objectMapper = new ObjectMapper();
     }
 
     public List<Match> fetchAllLiveMatches() {
@@ -96,40 +93,30 @@ public class MatchFetchService {
 
     private List<Match> fetchFootball(String url, long idOffset) {
         try {
-            String raw = restClient.get()
+            ApiFootballResponse response = restClient.get()
                     .uri(url)
                     .header("x-apisports-key", apiSportsKey)
                     .retrieve()
-                    .body(String.class);
-            if (raw == null || raw.isBlank()) return Collections.emptyList();
-            ApiFootballResponse response = objectMapper.readValue(raw, ApiFootballResponse.class);
+                    .body(ApiFootballResponse.class);
             if (response == null || response.getResponse() == null) return Collections.emptyList();
             return mapFootball(response, idOffset);
-        } catch (Exception e) {
+        } catch (RestClientException e) {
             log.error("Football fetch failed [{}]: {}", url, e.getMessage());
             return Collections.emptyList();
         }
     }
 
     private List<Match> fetchGames(String url, String sport, long idOffset) {
-        String raw = null;
         try {
-            raw = restClient.get()
+            ApiSportsGamesResponse response = restClient.get()
                     .uri(url)
                     .header("x-apisports-key", apiSportsKey)
                     .retrieve()
-                    .body(String.class);
-            if (raw == null || raw.isBlank()) return Collections.emptyList();
-            ApiSportsGamesResponse response = objectMapper.readValue(raw, ApiSportsGamesResponse.class);
+                    .body(ApiSportsGamesResponse.class);
             if (response == null || response.getResponse() == null) return Collections.emptyList();
             return mapGames(response, sport, idOffset);
         } catch (RestClientException e) {
             log.error("{} fetch failed [{}]: {}", sport, url, e.getMessage());
-            return Collections.emptyList();
-        } catch (Exception e) {
-            log.error("{} parse failed [{}]: {} | response snippet: {}",
-                    sport, url, e.getMessage(),
-                    raw != null ? raw.substring(0, Math.min(400, raw.length())) : "null");
             return Collections.emptyList();
         }
     }
