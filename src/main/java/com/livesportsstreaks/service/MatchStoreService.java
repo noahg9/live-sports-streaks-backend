@@ -45,7 +45,7 @@ public class MatchStoreService {
                 allMatches.size(), liveMatches.size(), finishedMatches.size());
     }
 
-private void storeMatches(List<Match> matches) {
+public void storeMatches(List<Match> matches) {
         int skipped = 0;
         for (Match match : matches) {
             if (match.getExternalId() == null) { skipped++; continue; }

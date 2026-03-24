@@ -67,6 +67,19 @@ public class MatchFetchService {
         return fetchForDate(LocalDate.now().minusDays(1).toString());
     }
 
+    /** Returns all TheSportsDB sport names this service supports, for external iteration (e.g. backfill). */
+    public Set<String> getSupportedSports() {
+        return SPORTS.keySet();
+    }
+
+    /** Fetches a single sport's events for the given date. No rate-limit delay — callers manage that. */
+    public List<Match> fetchForSport(String date, String sportsDbSport) {
+        if (!hasApiKey()) return Collections.emptyList();
+        SportConfig config = SPORTS.get(sportsDbSport);
+        if (config == null) return Collections.emptyList();
+        return fetchEvents(date, sportsDbSport, config);
+    }
+
     private List<Match> fetchForDate(String date) {
         List<Match> all = new ArrayList<>();
         for (Map.Entry<String, SportConfig> entry : SPORTS.entrySet()) {
