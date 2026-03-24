@@ -1,7 +1,6 @@
 package com.livesportsstreaks.service;
 
-import com.livesportsstreaks.dto.ApiFootballResponse;
-import com.livesportsstreaks.dto.ApiSportsGamesResponse;
+import com.livesportsstreaks.dto.TheSportsDbEventsResponse;
 import com.livesportsstreaks.model.Match;
 import com.livesportsstreaks.model.Team;
 import org.slf4j.Logger;
@@ -17,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -24,39 +24,34 @@ public class MatchFetchService {
 
     private static final Logger log = LoggerFactory.getLogger(MatchFetchService.class);
 
-    // Statuses that mean a match is fully finished across all sports
+    // TheSportsDB status values that indicate a fully finished match
     private static final Set<String> FINISHED_STATUSES = Set.of(
-            "FT",  // Full Time (football, basketball, rugby, handball, volleyball)
-            "AET", // After Extra Time (football)
-            "PEN", // After Penalties (football)
-            "AOT", // After Overtime (basketball, hockey, handball)
-            "SO",  // Shootout (hockey)
-            "FIN", // Finished (baseball)
-            "AP"   // After Penalties (rugby)
+            "Match Finished",
+            "FT",  "AET", "PEN", "AOT", "SO", "FIN", "AP"
     );
 
-    // Per-sport externalId offsets to prevent collisions — sport IDs are in the millions,
-    // offsets are in the billions, so they never overlap
-    private static final long FOOTBALL_OFFSET   = 0L;
-    private static final long BASKETBALL_OFFSET = 10_000_000_000L;
-    private static final long BASEBALL_OFFSET   = 20_000_000_000L;
-    private static final long HOCKEY_OFFSET     = 30_000_000_000L;
-    private static final long RUGBY_OFFSET      = 40_000_000_000L;
-    private static final long HANDBALL_OFFSET   = 50_000_000_000L;
-    private static final long VOLLEYBALL_OFFSET = 60_000_000_000L;
-    private static final long NFL_OFFSET        = 70_000_000_000L;
+    // TheSportsDB sport name → internal sport name + externalId offset
+    // Event IDs in TheSportsDB are ~7 digits; offsets are in the billions — no overlap
+    private record SportConfig(String internalName, long idOffset) {}
+
+    private static final Map<String, SportConfig> SPORTS = Map.of(
+            "Soccer",            new SportConfig("football",   0L),
+            "Basketball",        new SportConfig("basketball", 10_000_000_000L),
+            "Baseball",          new SportConfig("baseball",   20_000_000_000L),
+            "Ice_Hockey",        new SportConfig("hockey",     30_000_000_000L),
+            "Rugby_League",      new SportConfig("rugby",      40_000_000_000L),
+            "Handball",          new SportConfig("handball",   50_000_000_000L),
+            "Volleyball",        new SportConfig("volleyball", 60_000_000_000L),
+            "American_Football", new SportConfig("nfl",        70_000_000_000L)
+    );
 
     private final RestClient restClient;
 
-    @Value("${api.sports.key}")     private String apiSportsKey;
-    @Value("${api.football.url}")   private String footballUrl;
-    @Value("${api.basketball.url}") private String basketballUrl;
-    @Value("${api.baseball.url}")   private String baseballUrl;
-    @Value("${api.hockey.url}")     private String hockeyUrl;
-    @Value("${api.rugby.url}")      private String rugbyUrl;
-    @Value("${api.handball.url}")   private String handballUrl;
-    @Value("${api.volleyball.url}") private String volleyballUrl;
-    @Value("${api.nfl.url}")        private String nflUrl;
+    @Value("${api.thesportsdb.key}")
+    private String apiKey;
+
+    @Value("${api.thesportsdb.url}")
+    private String baseUrl;
 
     public MatchFetchService() {
         this.restClient = RestClient.builder().build();
@@ -64,133 +59,63 @@ public class MatchFetchService {
 
     public List<Match> fetchAllLiveMatches() {
         if (!hasApiKey()) return Collections.emptyList();
-        List<Match> all = new ArrayList<>();
-        all.addAll(fetchFootball(footballUrl + "/fixtures?live=all", FOOTBALL_OFFSET));
-        all.addAll(fetchGames(basketballUrl + "/games?live=all", "basketball", BASKETBALL_OFFSET));
-        all.addAll(fetchGames(baseballUrl + "/games?live=all", "baseball", BASEBALL_OFFSET));
-        all.addAll(fetchGames(hockeyUrl + "/games?live=all", "hockey", HOCKEY_OFFSET));
-        all.addAll(fetchGames(rugbyUrl + "/games?live=all", "rugby", RUGBY_OFFSET));
-        all.addAll(fetchGames(handballUrl + "/games?live=all", "handball", HANDBALL_OFFSET));
-        all.addAll(fetchGames(volleyballUrl + "/games?live=all", "volleyball", VOLLEYBALL_OFFSET));
-        all.addAll(fetchGames(nflUrl + "/games?live=all", "nfl", NFL_OFFSET));
-        return all;
+        return fetchForDate(LocalDate.now().toString());
     }
 
     public List<Match> fetchAllRecentFinishedMatches() {
         if (!hasApiKey()) return Collections.emptyList();
-        String date = LocalDate.now().minusDays(1).toString();
+        return fetchForDate(LocalDate.now().minusDays(1).toString());
+    }
+
+    private List<Match> fetchForDate(String date) {
         List<Match> all = new ArrayList<>();
-        all.addAll(fetchFootball(footballUrl + "/fixtures?date=" + date, FOOTBALL_OFFSET));
-        all.addAll(fetchGames(basketballUrl + "/games?date=" + date, "basketball", BASKETBALL_OFFSET));
-        all.addAll(fetchGames(baseballUrl + "/games?date=" + date, "baseball", BASEBALL_OFFSET));
-        all.addAll(fetchGames(hockeyUrl + "/games?date=" + date, "hockey", HOCKEY_OFFSET));
-        all.addAll(fetchGames(rugbyUrl + "/games?date=" + date, "rugby", RUGBY_OFFSET));
-        all.addAll(fetchGames(handballUrl + "/games?date=" + date, "handball", HANDBALL_OFFSET));
-        all.addAll(fetchGames(volleyballUrl + "/games?date=" + date, "volleyball", VOLLEYBALL_OFFSET));
-        all.addAll(fetchGames(nflUrl + "/games?date=" + date, "nfl", NFL_OFFSET));
+        for (Map.Entry<String, SportConfig> entry : SPORTS.entrySet()) {
+            all.addAll(fetchEvents(date, entry.getKey(), entry.getValue()));
+        }
         return all;
     }
 
-    private List<Match> fetchFootball(String url, long idOffset) {
+    private List<Match> fetchEvents(String date, String sportsDbSport, SportConfig config) {
+        String url = baseUrl + "/" + apiKey + "/eventsday.php?d=" + date + "&s=" + sportsDbSport;
         try {
-            ApiFootballResponse response = restClient.get()
+            TheSportsDbEventsResponse response = restClient.get()
                     .uri(url)
-                    .header("x-apisports-key", apiSportsKey)
                     .retrieve()
-                    .body(ApiFootballResponse.class);
-            if (response == null || response.getResponse() == null) return Collections.emptyList();
-            return mapFootball(response, idOffset);
+                    .body(TheSportsDbEventsResponse.class);
+            if (response == null || response.getEvents() == null) return Collections.emptyList();
+            return mapEvents(response.getEvents(), config.internalName(), config.idOffset());
         } catch (RestClientException e) {
-            log.error("Football fetch failed [{}]: {}", url, e.getMessage());
+            log.error("{} fetch failed [{}]: {}", sportsDbSport, url, e.getMessage());
             return Collections.emptyList();
         }
     }
 
-    private List<Match> fetchGames(String url, String sport, long idOffset) {
-        try {
-            ApiSportsGamesResponse response = restClient.get()
-                    .uri(url)
-                    .header("x-apisports-key", apiSportsKey)
-                    .retrieve()
-                    .body(ApiSportsGamesResponse.class);
-            if (response == null || response.getResponse() == null) return Collections.emptyList();
-            return mapGames(response, sport, idOffset);
-        } catch (RestClientException e) {
-            log.error("{} fetch failed [{}]: {}", sport, url, e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    private List<Match> mapFootball(ApiFootballResponse response, long idOffset) {
-        return response.getResponse().stream()
-                .map(fixture -> {
-                    ApiFootballResponse.TeamsInfo teams = fixture.getTeams();
-                    ApiFootballResponse.GoalsInfo goals = fixture.getGoals();
-                    ApiFootballResponse.FixtureInfo fixtureInfo = fixture.getFixture();
-                    ApiFootballResponse.LeagueInfo league = fixture.getLeague();
-
+    private List<Match> mapEvents(List<TheSportsDbEventsResponse.Event> events, String sport, long idOffset) {
+        return events.stream()
+                .map(event -> {
                     Team homeTeam = Team.builder()
-                            .name(teams != null && teams.getHome() != null ? teams.getHome().getName() : null)
-                            .sport("football")
-                            .league(league != null ? league.getName() : null)
+                            .name(event.getStrHomeTeam())
+                            .sport(sport)
+                            .league(event.getStrLeague())
                             .build();
 
                     Team awayTeam = Team.builder()
-                            .name(teams != null && teams.getAway() != null ? teams.getAway().getName() : null)
-                            .sport("football")
-                            .league(league != null ? league.getName() : null)
-                            .build();
-
-                    Long apiId = fixtureInfo != null ? fixtureInfo.getId() : null;
-                    String rawStatus = fixtureInfo != null && fixtureInfo.getStatus() != null
-                            ? fixtureInfo.getStatus().getShortStatus() : null;
-
-                    return Match.builder()
-                            .externalId(apiId != null ? apiId + idOffset : null)
-                            .sport("football")
-                            .date(fixtureInfo != null ? parseDate(fixtureInfo.getDate()) : null)
-                            .homeTeam(homeTeam)
-                            .awayTeam(awayTeam)
-                            .homeScore(goals != null ? goals.getHome() : null)
-                            .awayScore(goals != null ? goals.getAway() : null)
-                            .status(normalizeStatus(rawStatus))
-                            .build();
-                })
-                .toList();
-    }
-
-    private List<Match> mapGames(ApiSportsGamesResponse response, String sport, long idOffset) {
-        return response.getResponse().stream()
-                .map(entry -> {
-                    ApiSportsGamesResponse.TeamsInfo teams = entry.getTeams();
-                    ApiSportsGamesResponse.ScoresInfo scores = entry.getScores();
-                    ApiSportsGamesResponse.LeagueInfo league = entry.getLeague();
-                    ApiSportsGamesResponse.StatusInfo statusInfo = entry.getEffectiveStatus();
-
-                    Team homeTeam = Team.builder()
-                            .name(teams != null && teams.getHome() != null ? teams.getHome().getName() : null)
+                            .name(event.getStrAwayTeam())
                             .sport(sport)
-                            .league(league != null ? league.getName() : null)
+                            .league(event.getStrLeague())
                             .build();
 
-                    Team awayTeam = Team.builder()
-                            .name(teams != null && teams.getAway() != null ? teams.getAway().getName() : null)
-                            .sport(sport)
-                            .league(league != null ? league.getName() : null)
-                            .build();
-
-                    Long apiId = entry.getEffectiveId();
-                    String rawStatus = statusInfo != null ? statusInfo.getShortStatus() : null;
+                    Long apiId = parseId(event.getIdEvent());
 
                     return Match.builder()
                             .externalId(apiId != null ? apiId + idOffset : null)
                             .sport(sport)
-                            .date(parseDate(entry.getEffectiveDate()))
+                            .date(parseDate(event))
                             .homeTeam(homeTeam)
                             .awayTeam(awayTeam)
-                            .homeScore(scores != null && scores.getHome() != null ? scores.getHome().getEffectiveTotal() : null)
-                            .awayScore(scores != null && scores.getAway() != null ? scores.getAway().getEffectiveTotal() : null)
-                            .status(normalizeStatus(rawStatus))
+                            .homeScore(parseScore(event.getIntHomeScore()))
+                            .awayScore(parseScore(event.getIntAwayScore()))
+                            .status(normalizeStatus(event.getStrStatus()))
                             .build();
                 })
                 .toList();
@@ -201,21 +126,50 @@ public class MatchFetchService {
         return FINISHED_STATUSES.contains(status) ? "FT" : status;
     }
 
+    private Long parseId(String id) {
+        if (id == null || id.isBlank()) return null;
+        try {
+            return Long.parseLong(id);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Integer parseScore(String score) {
+        if (score == null || score.isBlank()) return null;
+        try {
+            return Integer.parseInt(score);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private LocalDateTime parseDate(TheSportsDbEventsResponse.Event event) {
+        // Prefer strTimestamp (ISO-8601 with offset), fall back to dateEvent + strTime
+        if (event.getStrTimestamp() != null && !event.getStrTimestamp().isBlank()) {
+            try {
+                return OffsetDateTime.parse(event.getStrTimestamp()).toLocalDateTime();
+            } catch (Exception e) {
+                log.warn("Could not parse strTimestamp '{}': {}", event.getStrTimestamp(), e.getMessage());
+            }
+        }
+        if (event.getDateEvent() != null && !event.getDateEvent().isBlank()) {
+            String time = event.getStrTime() != null && !event.getStrTime().isBlank()
+                    ? event.getStrTime() : "00:00:00";
+            try {
+                return OffsetDateTime.parse(event.getDateEvent() + "T" + time + "+00:00").toLocalDateTime();
+            } catch (Exception e) {
+                log.warn("Could not parse date '{} {}': {}", event.getDateEvent(), time, e.getMessage());
+            }
+        }
+        return null;
+    }
+
     private boolean hasApiKey() {
-        if (apiSportsKey == null || apiSportsKey.isBlank()) {
-            log.warn("api.sports.key is not configured — skipping all fetches");
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("api.thesportsdb.key is not configured — skipping all fetches");
             return false;
         }
         return true;
-    }
-
-    private LocalDateTime parseDate(String isoDate) {
-        if (isoDate == null) return null;
-        try {
-            return OffsetDateTime.parse(isoDate).toLocalDateTime();
-        } catch (Exception e) {
-            log.warn("Could not parse date '{}': {}", isoDate, e.getMessage());
-            return null;
-        }
     }
 }
