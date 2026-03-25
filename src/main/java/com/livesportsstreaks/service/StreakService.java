@@ -30,6 +30,10 @@ public class StreakService {
     // Sports where draws are possible — unbeaten streak is meaningful
     private static final Set<String> DRAW_SPORTS = Set.of("football", "rugby", "handball");
 
+    // Require this many matches beyond the streak length to consider data trustworthy.
+    // e.g. a streak of 5 needs at least 8 matches total — purely streak-length teams are suspect.
+    private static final int MIN_MATCHES_BUFFER = 3;
+
     private final TeamRepository teamRepository;
     private final MatchRepository matchRepository;
     private final StreakRepository streakRepository;
@@ -48,14 +52,23 @@ public class StreakService {
     @Transactional
     public void calculateAndStoreTeamStreaks() {
         List<Team> teams = teamRepository.findAll();
+        int skipped = 0;
         for (Team team : teams) {
             List<Match> matches = matchRepository.findFinishedMatchesByTeamOrderByDateDesc(team.getId());
-            upsertStreak("team", team.getId(), "win", calculateWinStreak(matches, team.getId()));
+            int winStreak = calculateWinStreak(matches, team.getId());
+            if (matches.size() < winStreak + MIN_MATCHES_BUFFER) {
+                skipped++;
+                continue;
+            }
+            upsertStreak("team", team.getId(), "win", winStreak);
             if (DRAW_SPORTS.contains(team.getSport())) {
-                upsertStreak("team", team.getId(), "unbeaten", calculateUnbeatenStreak(matches, team.getId()));
+                int unbeatenStreak = calculateUnbeatenStreak(matches, team.getId());
+                if (matches.size() >= unbeatenStreak + MIN_MATCHES_BUFFER) {
+                    upsertStreak("team", team.getId(), "unbeaten", unbeatenStreak);
+                }
             }
         }
-        log.info("Calculated streaks for {} teams", teams.size());
+        log.info("Calculated streaks for {} teams ({} skipped — insufficient match history)", teams.size() - skipped, skipped);
     }
 
     @Transactional
@@ -71,12 +84,20 @@ public class StreakService {
             Long teamId = player.getTeam().getId();
             List<Match> matches = teamMatchCache.computeIfAbsent(teamId,
                     id -> matchRepository.findFinishedMatchesByTeamOrderByDateDesc(id));
-            upsertStreak("player", player.getId(), "win", calculateWinStreak(matches, teamId));
+            int winStreak = calculateWinStreak(matches, teamId);
+            if (matches.size() < winStreak + MIN_MATCHES_BUFFER) {
+                skipped++;
+                continue;
+            }
+            upsertStreak("player", player.getId(), "win", winStreak);
             if (DRAW_SPORTS.contains(player.getSport())) {
-                upsertStreak("player", player.getId(), "unbeaten", calculateUnbeatenStreak(matches, teamId));
+                int unbeatenStreak = calculateUnbeatenStreak(matches, teamId);
+                if (matches.size() >= unbeatenStreak + MIN_MATCHES_BUFFER) {
+                    upsertStreak("player", player.getId(), "unbeaten", unbeatenStreak);
+                }
             }
         }
-        log.info("Calculated streaks for {} players ({} skipped — no team)", players.size() - skipped, skipped);
+        log.info("Calculated streaks for {} players ({} skipped — no team or insufficient match history)", players.size() - skipped, skipped);
     }
 
     private int calculateWinStreak(List<Match> matches, Long teamId) {
