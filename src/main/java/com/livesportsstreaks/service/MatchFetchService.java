@@ -42,7 +42,7 @@ public class MatchFetchService {
             "Rugby_League",      new SportConfig("rugby",      40_000_000_000L),
             "Handball",          new SportConfig("handball",   50_000_000_000L),
             "Volleyball",        new SportConfig("volleyball", 60_000_000_000L),
-            "American_Football", new SportConfig("nfl",        70_000_000_000L)
+            "American_Football", new SportConfig("american_football", 70_000_000_000L)
     );
 
     private final RestClient restClient;
