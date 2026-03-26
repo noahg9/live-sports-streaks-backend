@@ -28,7 +28,7 @@ public class StreakService {
     private static final Logger log = LoggerFactory.getLogger(StreakService.class);
 
     // Sports where draws are possible — unbeaten streak is meaningful
-    private static final Set<String> DRAW_SPORTS = Set.of("football", "rugby", "handball");
+    private static final Set<String> DRAW_SPORTS = Set.of("football", "rugby", "rugby_union", "handball");
 
     // Require this many matches beyond the streak length to consider data trustworthy.
     // e.g. a streak of 5 needs at least 8 matches total — purely streak-length teams are suspect.

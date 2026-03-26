@@ -34,15 +34,24 @@ public class MatchFetchService {
     // Event IDs in TheSportsDB are ~7 digits; offsets are in the billions — no overlap
     private record SportConfig(String internalName, long idOffset) {}
 
-    private static final Map<String, SportConfig> SPORTS = Map.of(
-            "Soccer",            new SportConfig("football",   0L),
-            "Basketball",        new SportConfig("basketball", 10_000_000_000L),
-            "Baseball",          new SportConfig("baseball",   20_000_000_000L),
-            "Ice_Hockey",        new SportConfig("hockey",     30_000_000_000L),
-            "Rugby_League",      new SportConfig("rugby",      40_000_000_000L),
-            "Handball",          new SportConfig("handball",   50_000_000_000L),
-            "Volleyball",        new SportConfig("volleyball", 60_000_000_000L),
-            "American_Football", new SportConfig("american_football", 70_000_000_000L)
+    private static final Map<String, SportConfig> SPORTS = Map.ofEntries(
+            Map.entry("Soccer",            new SportConfig("football",            0L)),
+            Map.entry("Basketball",        new SportConfig("basketball",          10_000_000_000L)),
+            Map.entry("Baseball",          new SportConfig("baseball",            20_000_000_000L)),
+            Map.entry("Ice_Hockey",        new SportConfig("hockey",              30_000_000_000L)),
+            Map.entry("Rugby_League",      new SportConfig("rugby",               40_000_000_000L)),
+            Map.entry("Handball",          new SportConfig("handball",            50_000_000_000L)),
+            Map.entry("Volleyball",        new SportConfig("volleyball",          60_000_000_000L)),
+            Map.entry("American_Football", new SportConfig("american_football",   70_000_000_000L)),
+            Map.entry("Tennis",            new SportConfig("tennis",              80_000_000_000L)),
+            Map.entry("Fighting",          new SportConfig("fighting",            90_000_000_000L)),
+            Map.entry("Australian_Football", new SportConfig("australian_football", 100_000_000_000L)),
+            Map.entry("Motorsport",        new SportConfig("motorsport",          110_000_000_000L)),
+            Map.entry("Darts",             new SportConfig("darts",               120_000_000_000L)),
+            Map.entry("Golf",              new SportConfig("golf",                130_000_000_000L)),
+            Map.entry("Snooker",           new SportConfig("snooker",             140_000_000_000L)),
+            Map.entry("Rugby",             new SportConfig("rugby_union",         150_000_000_000L)),
+            Map.entry("Cycling",           new SportConfig("cycling",             160_000_000_000L))
     );
 
     private final RestClient restClient;
